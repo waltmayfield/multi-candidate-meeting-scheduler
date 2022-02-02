@@ -15,6 +15,12 @@ from InquirerPy.prompts.checkbox import CheckboxPrompt
 
 LOCAL_TIMEZONE = datetime.datetime.now().astimezone().tzinfo
 
+def air_port_code_to_tz(air_port_code,filename = 'tzmap.txt'):
+    with open(filename, 'r') as file:
+        datareader = csv.reader(file, delimiter='\t')
+        for code, timezone in datareader:
+                if code == air_port_code: return timezone
+
 class OutlookMac():
     def __init__(self):
         from appscript import app, k
@@ -96,7 +102,10 @@ class OutlookWin():
         saved_args = locals()
         print("get_freebusy saved_args is", saved_args)
 
-        timezone = 'US/Pacific'
+        #this code is so ugly and won't work outside of AWS.
+        air_port_code = recipient.AddressEntry.GetExchangeUser().OfficeLocation[:3]
+
+        timezone = air_port_code_to_tz(air_port_code)
 
         recipient = self.namespace.CreateRecipient(attendee)
         start_time = arrow.get(start_time).replace(hour=0,minute=0, second=0).to('UTC')
@@ -105,8 +114,8 @@ class OutlookWin():
         res = recipient.FreeBusy(start_time.datetime, interval, True)
 
         print(f'freeBusy start_time: {start_time}')
-        # print(f'start_time as datetime: {start_time.datetime}')
-        # print(f'####### res: {res}  ########')
+        print(f'start_time as datetime: {start_time.datetime}')
+        print(f'####### res: {res}  ########')
 
         visibilitiy = {}
         current_time = start_time
@@ -123,8 +132,8 @@ class OutlookWin():
 
             #Mark Busy if outside working hours
             attendeeTime = current_time.to(timezone)
-            if attendeeTime.format('HHmm') > '1700' or attendeeTime.format('HHmm') < '0800': status = 'busy'
-            if attendeeTime.format('ddd') in ("Sat", "Sun"): status = 'busy'
+            # if attendeeTime.format('HHmm') > '1700' or attendeeTime.format('HHmm') < '0800': status = 'busy'
+            # if attendeeTime.format('ddd') in ("Sat", "Sun"): status = 'busy'
             
             visibilitiy[current_time] = attendee, '', status
             current_time = current_time.shift(minutes=interval)

@@ -1,5 +1,7 @@
 Iakov has already made a wonderful slots tool: https://github.com/iakov-aws/slots
 
+
+
 # Slots
 
 ## About
@@ -28,7 +30,7 @@ python3 slots.py  --attendees 'attendee1@domain.com; Atten Dee <attendee2@domain
   Thursday 27 January 14:00 - 15:00 CET / 08:00 - 09:00 America/New_York
 
 ```
-
+python3 slots.py  --attendees 'waltmayf@amazon.com' --end 'in 3 days' --lenght 15
 
 ## Install
 ### mac

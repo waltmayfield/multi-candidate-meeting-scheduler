@@ -1,24 +1,24 @@
-# import arrow
-# import datetime
+import win32com.client
+import csv
 
-# # testTime = arrow.get(datetime.datetime(2013, 5, 5), 'US/Pacific')
-# start = arrow.now('US/Central').replace(minute=0, second=0).to('UTC')
+outlook = win32com.client.Dispatch('Outlook.Application')
+namespace = outlook.GetNamespace("MAPI")
 
-# print(start)
+recipient = namespace.CreateRecipient('waltmayf@amazon.com')
 
-d1 = {'a':123,'b':234}
 
-d2 = {'b':5664,'c':45}
 
-alldict = [d1.keys(),d2.keys()]
+# print(list(dir(recipient)))
 
-print(alldict)
+air_port_code = recipient.AddressEntry.GetExchangeUser().OfficeLocation[:3]
 
-intersectionSet = alldict[0]
-for i in alldict:
-	intersectionSet = intersectionSet & i
-	print(intersectionSet)
+def air_port_code_to_tz(air_port_code,filename = 'tzmap.txt'):
+	with open(filename, 'r') as file:
+		datareader = csv.reader(file, delimiter='\t')
+		for code, timezone in datareader:
+		        if code == air_port_code: return timezone
 
-# allkey = alldict[0].intersection(*alldict)
 
-print(intersectionSet)
+print(recipient.AddressEntry.GetExchangeUser().OfficeLocation[:3])
+
+print(air_port_code_to_tz(air_port_code))
