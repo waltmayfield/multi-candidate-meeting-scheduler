@@ -231,6 +231,7 @@ def main(attendees, start, end, full, rate, length, tentative, alternative_tz, h
 
     print ('Looking up agendas for', '; '.join(attendees))
 
+    print(f'system platform: {sys.platform}')
     if sys.platform == 'darwin':
         outlook = OutlookMac()
     elif sys.platform.startswith('win'):
