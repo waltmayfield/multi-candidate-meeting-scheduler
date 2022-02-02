@@ -5,6 +5,7 @@ import getpass
 import datetime
 import zoneinfo
 from dateutil import tz
+import csv
 
 import click
 import arrow
@@ -102,20 +103,20 @@ class OutlookWin():
         saved_args = locals()
         print("get_freebusy saved_args is", saved_args)
 
+        recipient = self.namespace.CreateRecipient(attendee)
+
         #this code is so ugly and won't work outside of AWS.
         air_port_code = recipient.AddressEntry.GetExchangeUser().OfficeLocation[:3]
-
         timezone = air_port_code_to_tz(air_port_code)
 
-        recipient = self.namespace.CreateRecipient(attendee)
         start_time = arrow.get(start_time).replace(hour=0,minute=0, second=0).to('UTC')
         # start_time = arrow.get(datetime.datetime(2013, 5, 5), 'US/Pacific')
         end_time = arrow.get(end_time)
         res = recipient.FreeBusy(start_time.datetime, interval, True)
 
-        print(f'freeBusy start_time: {start_time}')
-        print(f'start_time as datetime: {start_time.datetime}')
-        print(f'####### res: {res}  ########')
+        # print(f'freeBusy start_time: {start_time}')
+        # print(f'start_time as datetime: {start_time.datetime}')
+        # print(f'####### res: {res}  ########')
 
         visibilitiy = {}
         current_time = start_time
@@ -132,8 +133,8 @@ class OutlookWin():
 
             #Mark Busy if outside working hours
             attendeeTime = current_time.to(timezone)
-            # if attendeeTime.format('HHmm') > '1700' or attendeeTime.format('HHmm') < '0800': status = 'busy'
-            # if attendeeTime.format('ddd') in ("Sat", "Sun"): status = 'busy'
+            if attendeeTime.format('HHmm') > '1700' or attendeeTime.format('HHmm') < '0800': status = 'busy'
+            if attendeeTime.format('ddd') in ("Sat", "Sun"): status = 'busy'
             
             visibilitiy[current_time] = attendee, '', status
             current_time = current_time.shift(minutes=interval)
@@ -163,12 +164,12 @@ class OutlookWin():
 @click.option('--full/--only-slots', default=False, help='Show slots or a full agenda (default=only slots)')
 @click.option('-r', '--rate', default=100, help='Acceptable share of available attendees in percent(%)')
 @click.option('--tentative/--no-tentative', default=True, help="Treat tentative meetings as free")
-@click.option('-l', '--lenght', default=60, help='Length of the meeting, in minutes. default=60')
+@click.option('-l', '--length', default=60, help='Length of the meeting, in minutes. default=60')
 @click.option('-tz', '--alternative_tz', default=None, help='A comma separated list of alternative Timezones.')
-@click.option('-hr', '--hours', default='0800-1700', help='Find availability between the hours of... Default = "0800-1900". ')
+@click.option('-hr', '--hours', default='0700-1800', help='Find availability between the hours of... Default = "0800-1900". ')
 @click.option('-f', '--fmt', default='HH:mm',
               help='Time format in list of available slots. "HH:mm" or "h:mma". Refer to https://arrow.readthedocs.io/en/latest/#supported-tokens. Default "HH:mm".')
-def main(attendees, start, end, full, rate, lenght, tentative, alternative_tz, hours, fmt):
+def main(attendees, start, end, full, rate, length, tentative, alternative_tz, hours, fmt):
     saved_args = locals()
     print("saved_args is", saved_args)
 
@@ -240,7 +241,7 @@ def main(attendees, start, end, full, rate, lenght, tentative, alternative_tz, h
     else:
         raise NotImplementedError(f'{sys.platform} not supported')
 
-    interval = 15 if lenght <=30 else 30 
+    interval = 15 if length <=30 else 30 
     freebusy = {}
     for index, _ in enumerate(attendees):
         while True: # for retry
@@ -268,7 +269,7 @@ def main(attendees, start, end, full, rate, lenght, tentative, alternative_tz, h
     print('####### Free Busy Times ########')
     for k, v in freebusy['waltmayf@amazon.com'].items(): 
         # print('Hello World')
-        print(f'{k} {v}')
+        print(f'{k.to(LOCAL_TIMEZONE)} {v}')
 
 
     current_time_start = None
@@ -297,9 +298,10 @@ def main(attendees, start, end, full, rate, lenght, tentative, alternative_tz, h
         choices = []
         last_date = ''
         for time in list(freebusy.values())[0]:
+            time = time.to(LOCAL_TIMEZONE)
             line  = time.format('    HH:mm ')
-            if time.format('HHmm') > between_upper or time.format('HHmm') < between_lower: continue
-            if time.format('ddd') in ("Sat", "Sun"): continue
+            # if time.format('HHmm') > between_upper or time.format('HHmm') < between_lower: continue
+            # if time.format('ddd') in ("Sat", "Sun"): continue
             if time.format("dddd DD MMMM") != last_date:
                 last_date = time.format("dddd DD MMMM")
                 choices.append(Separator(last_date))
@@ -317,7 +319,7 @@ def main(attendees, start, end, full, rate, lenght, tentative, alternative_tz, h
                 line +=  char * 5 + '│'
             line +=   f'{num_free:2d}/{len(freebusy)} ' + num_free * '█'
             if (num_free + 0.5) / len(freebusy) * 100 > rate:
-                choices.append({"name":line, "value": (time, time.shift(minutes=lenght))})
+                choices.append({"name":line, "value": (time, time.shift(minutes=length))})
             else:
                 choices.append(Separator(line))
 
@@ -334,14 +336,22 @@ def main(attendees, start, end, full, rate, lenght, tentative, alternative_tz, h
         # show only slots where everybody is available
         slots = {}
 
-        for time in list(freebusy.values())[0]:
+        candidate_times = list(freebusy.values())[0]
+        for i, time in enumerate(candidate_times):
+            # time = time.to(LOCAL_TIMEZONE)
+            num_intervals = int(length/interval)
             num_free = 0
             busy_attendees = []
             for att in freebusy:
                 free = True
-                if freebusy[att][time][2] in busy_statuses: free = False
-                if time.format('HHmm') > between_upper or time.format('HHmm') < between_lower: free = False
-                if time.format('ddd') in ("Sat", "Sun"): free = False
+                #Loop through all the times what would have to be free for the time to work
+                # print(f'num intervals: {num_intervals}')
+                # print(f'candidate times: {list(candidate_times)}')
+
+                for att_time in list(candidate_times)[i:(i+num_intervals)]:
+                    if freebusy[att][att_time][2] in busy_statuses: free = False
+                    # if time.format('HHmm') > between_upper or time.format('HHmm') < between_lower: free = False
+                    # if time.format('ddd') in ("Sat", "Sun"): free = False
                 if free:
                     num_free += 1
                 else:
@@ -353,46 +363,46 @@ def main(attendees, start, end, full, rate, lenght, tentative, alternative_tz, h
             if len(set(domains)) == 1:
                 busy_attendees = [email.split('@')[0] for email in busy_attendees]
 
+            attendee_free_rate = (num_free + 0.5) / len(freebusy) * 100
+
+            print(f'Time: {time.to(LOCAL_TIMEZONE)}, Free rate: {attendee_free_rate}, Trigger Value: {attendee_free_rate >=  rate}')
+
+            if attendee_free_rate >=  rate:
+                # print('updateing slots')
+                slot_name = f'{time.to(LOCAL_TIMEZONE).format("dddd DD MMMM " + fmt)} - {time.to(LOCAL_TIMEZONE).shift(minutes=length).format(fmt)} {str(LOCAL_TIMEZONE)}'
+                slots[slot_name] = (time, time.shift(minutes=length))
+                # print(f'slots: {slots}')
+
+            # # check if this time ends a started slot
+            # # fixme: a change in busy_attendees should also trigger a slot end, but in this case the slot can be splitted in 2. 
+            # if current_slot_status == "started" and (time-current_time_start).seconds/60>=length:#.shift(minutes=length - 1) < time:
+            #     slot_name = '%20s' % current_time_start.format("dddd DD MMMM " + fmt) + ' - '  + current_time_start.shift(minutes=length).format(fmt) + " " + str(LOCAL_TIMEZONE)
+            #     all_tz_free = True
+            #     for tz in alternative_tz:
+            #         # print(f'################ tz: {tz}  #####################')
+            #         time_start_tz = current_time_start.to('local').to(tz)
+            #         time_end_tz = time.to(tz)
+            #         if time_end_tz.format('HHmm') > between_upper or time_start_tz.format('HHmm') < between_lower:
+            #             all_tz_free = False
+            #         slot_name += ' / '  +  time_start_tz.format(fmt) + ' - '  + time_end_tz.format(fmt) + " " + str(tz)
+            #     if current_busy_attendees:
+            #         slot_name += ' (N/A: ' + ','.join(current_busy_attendees) + ')'
+            #     if all_tz_free:
+            #         slots[slot_name] = (current_time_start, time)
+            #     current_time_start = None
+            #     current_slot_status = "not started"
+
+            # if attendee_free_rate >=  rate:
+            #     if not current_time_start:
+            #         current_time_start = time
+            #         current_busy_attendees = busy_attendees
+            #     current_slot_status = "started"
+            # else:#If there's a break in availability, stop the slot timer
+            #     current_time_start = None
+            #     current_slot_status = "not started"
 
 
-            if num_free == len(freebusy):
-                slot_name = f'{time.format(fmt)} - {time.shift(minutes=lenght).format(fmt)} {str(LOCAL_TIMEZONE)}'
-                all_tz_free = True
-                # for tz in alternative_tz:
-                #     # print(f'################ tz: {tz}  #####################')
-                #     time_start_tz = current_time_start.to('local').to(tz)
-                #     time_end_tz = time.to(tz)
-                #     if time_end_tz.format('HHmm') > between_upper or time_start_tz.format('HHmm') < between_lower:
-                #         all_tz_free = False
-
-
-            # check if this time ends a started slot
-            # fixme: a change in busy_attendees should also trigger a slot end, but in this case the slot can be splitted in 2. 
-            if (num_free + 0.5) / len(freebusy) * 100 <= rate \
-               or (current_slot_status == "started" and current_busy_attendees != busy_attendees): 
-                if current_slot_status == "started" and current_time_start.shift(minutes=lenght - 1) < time:
-                    slot_name = '%20s' % current_time_start.format("dddd DD MMMM " + fmt) + ' - '  + time.format(fmt) + " " + str(LOCAL_TIMEZONE)
-                    all_tz_free = True
-                    for tz in alternative_tz:
-                        # print(f'################ tz: {tz}  #####################')
-                        time_start_tz = current_time_start.to('local').to(tz)
-                        time_end_tz = time.to(tz)
-                        if time_end_tz.format('HHmm') > between_upper or time_start_tz.format('HHmm') < between_lower:
-                            all_tz_free = False
-                        slot_name += ' / '  +  time_start_tz.format(fmt) + ' - '  + time_end_tz.to(tz).format(fmt) + " " + str(tz)
-                    if current_busy_attendees:
-                        slot_name += ' (N/A: ' + ','.join(current_busy_attendees) + ')'
-                    if all_tz_free:
-                        slots[slot_name] = (current_time_start, time)
-                current_time_start = None
-                current_slot_status = "not started"
-            if (num_free + 0.5) / len(freebusy) * 100 >  rate:
-                if not current_time_start:
-                    current_time_start = time
-                    current_busy_attendees = busy_attendees
-                current_slot_status = "started"
-
-
+        print(f'slots: {slots}')
 
         res = prompt(questions=[
             {
