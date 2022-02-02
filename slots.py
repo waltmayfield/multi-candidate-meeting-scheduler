@@ -51,7 +51,7 @@ class OutlookMac():
             while  current_time < end_time:
                 if len(res) == 0: break
                 name, location, status =  (res.pop(0), res.pop(0), res.pop(0))
-                visibilitiy[current_time] = name, location, status
+                visibilitiy[current_time.to('UTC')] = name, location, status #Store the time visibility in UTC for comparison purposes
                 current_time = current_time.shift(minutes=interval)
 
             variations = set(list(visibilitiy.values()))
@@ -100,8 +100,8 @@ class OutlookWin():
             Looks like the "Office" field is populated. I could look up the airport code to find timezone.
             https://raw.githubusercontent.com/hroptatyr/dateutils/tzmaps/iata.tzmap
         """
-        saved_args = locals()
-        print("get_freebusy saved_args is", saved_args)
+        # saved_args = locals()
+        # print("get_freebusy saved_args is", saved_args)
 
         recipient = self.namespace.CreateRecipient(attendee)
 
@@ -133,7 +133,7 @@ class OutlookWin():
 
             #Mark Busy if outside working hours
             attendeeTime = current_time.to(timezone)
-            if attendeeTime.format('HHmm') > '1700' or attendeeTime.format('HHmm') < '0800': status = 'busy'
+            if attendeeTime.format('HHmm') >= '1700' or attendeeTime.format('HHmm') < '0800': status = 'busy'
             if attendeeTime.format('ddd') in ("Sat", "Sun"): status = 'busy'
             
             visibilitiy[current_time] = attendee, '', status
@@ -141,15 +141,13 @@ class OutlookWin():
         return visibilitiy    
 
     def create_event(self, subject, content, start_time, end_time, attendees):
-        
-        # str_start_time = start_time.replace(hour=0,minute=0, second=0).format()
-        print('event creation is not yet implemented for windows')
         mail = self.outlook.CreateItem(1)   #Open new mail
 
-        mail.Start = str_start_time  #Append start time to the 
+        mail.Start = start_time.to(LOCAL_TIMEZONE).format('YYYY-MM-DD HH:mm:ss') 
         mail.Subject = subject
         mail.Duration = 15 #Duration in minutes. Do the math with the start and end time.
         mail.MeetingStatus = 1 
+        mail.Body = content
 
         for alias in attendees: mail.Recipients.Add(alias)
         mail.Display()
@@ -170,18 +168,16 @@ class OutlookWin():
 @click.option('-f', '--fmt', default='HH:mm',
               help='Time format in list of available slots. "HH:mm" or "h:mma". Refer to https://arrow.readthedocs.io/en/latest/#supported-tokens. Default "HH:mm".')
 def main(attendees, start, end, full, rate, length, tentative, alternative_tz, hours, fmt):
-    saved_args = locals()
-    print("saved_args is", saved_args)
+    # saved_args = locals()
+    # print("saved_args is", saved_args)
 
     if start == 'today':
-        start = arrow.now('US/Central').replace(minute=0, second=0)
+        start = arrow.now(LOCAL_TIMEZONE).replace(minute=0, second=0)
     else:
         try:
-            start = arrow.get('US/Central').dehumanize(start).replace(minute=0, second=0)
+            start = arrow.get(LOCAL_TIMEZONE).dehumanize(start).replace(minute=0, second=0)
         except:
             pass 
-
-    print(f'Initial Start: {start}')
 
     between_lower, between_upper = hours.split('-')
 
@@ -266,10 +262,12 @@ def main(attendees, start, end, full, rate, length, tentative, alternative_tz, h
     # print(f'######## freebusy: {freebusy.replace()}')
     # print("{" + "\n".join("{!r}: {!r},".format(k, v) for k, v in freebusy.items()) + "}")
 
-    print('####### Free Busy Times ########')
-    for k, v in freebusy['waltmayf@amazon.com'].items(): 
-        # print('Hello World')
-        print(f'{k.to(LOCAL_TIMEZONE)} {v}')
+    # print('####### Free Busy Times ########')
+    # for att,_ in freebusy.items():
+    #     print(f'################ Attendee: {att} ################################') 
+    #     for k, v in freebusy[att].items(): 
+    #         # print('Hello World')
+    #         print(f'{k.to(LOCAL_TIMEZONE)} {v}')
 
 
     current_time_start = None
@@ -365,7 +363,7 @@ def main(attendees, start, end, full, rate, length, tentative, alternative_tz, h
 
             attendee_free_rate = (num_free + 0.5) / len(freebusy) * 100
 
-            print(f'Time: {time.to(LOCAL_TIMEZONE)}, Free rate: {attendee_free_rate}, Trigger Value: {attendee_free_rate >=  rate}')
+            # print(f'Time: {time.to(LOCAL_TIMEZONE)}, Free rate: {attendee_free_rate}, Trigger Value: {attendee_free_rate >=  rate}')
 
             if attendee_free_rate >=  rate:
                 # print('updateing slots')
@@ -373,36 +371,7 @@ def main(attendees, start, end, full, rate, length, tentative, alternative_tz, h
                 slots[slot_name] = (time, time.shift(minutes=length))
                 # print(f'slots: {slots}')
 
-            # # check if this time ends a started slot
-            # # fixme: a change in busy_attendees should also trigger a slot end, but in this case the slot can be splitted in 2. 
-            # if current_slot_status == "started" and (time-current_time_start).seconds/60>=length:#.shift(minutes=length - 1) < time:
-            #     slot_name = '%20s' % current_time_start.format("dddd DD MMMM " + fmt) + ' - '  + current_time_start.shift(minutes=length).format(fmt) + " " + str(LOCAL_TIMEZONE)
-            #     all_tz_free = True
-            #     for tz in alternative_tz:
-            #         # print(f'################ tz: {tz}  #####################')
-            #         time_start_tz = current_time_start.to('local').to(tz)
-            #         time_end_tz = time.to(tz)
-            #         if time_end_tz.format('HHmm') > between_upper or time_start_tz.format('HHmm') < between_lower:
-            #             all_tz_free = False
-            #         slot_name += ' / '  +  time_start_tz.format(fmt) + ' - '  + time_end_tz.format(fmt) + " " + str(tz)
-            #     if current_busy_attendees:
-            #         slot_name += ' (N/A: ' + ','.join(current_busy_attendees) + ')'
-            #     if all_tz_free:
-            #         slots[slot_name] = (current_time_start, time)
-            #     current_time_start = None
-            #     current_slot_status = "not started"
-
-            # if attendee_free_rate >=  rate:
-            #     if not current_time_start:
-            #         current_time_start = time
-            #         current_busy_attendees = busy_attendees
-            #     current_slot_status = "started"
-            # else:#If there's a break in availability, stop the slot timer
-            #     current_time_start = None
-            #     current_slot_status = "not started"
-
-
-        print(f'slots: {slots}')
+        # print(f'slots: {slots}')
 
         res = prompt(questions=[
             {
@@ -418,16 +387,26 @@ def main(attendees, start, end, full, rate, length, tentative, alternative_tz, h
     if res[0] is None: 
         return
 
+    # print(f'res: {res}')
+
+    pretty_selected_times = ''
+    for start_time, end_time in res[0]:
+        # pretty_selected_times += f'\u2022 {start_time.to(LOCAL_TIMEZONE).format(fmt)} - {end_time.to(LOCAL_TIMEZONE).format(fmt)} {str(LOCAL_TIMEZONE)} \n'
+        pretty_selected_times += f'\u2022 {start_time.to(LOCAL_TIMEZONE).format("ddd, MMM-DD HH:mm")} - {end_time.to(LOCAL_TIMEZONE).format("HH:mm")} {str(LOCAL_TIMEZONE)} \n'
+
+
+    print(pretty_selected_times)
+
     for i, (start_time, end_time) in enumerate(res[0]):
-        print(f'######### Creating Meeting {i}  ##########')
-        start_time= start_time.format()[:-9]
-        print(f'start time: {str(start_time)}')
+        # print(f'######### Creating Meeting {i}  ##########')
+        # start_time= start_time.format()[:-9]
+        # print(f'start time: {str(start_time)}')
         outlook.create_event(
             subject='Placeholder',
-            content='Hello,\n',
+            content='This placeholder meeting is part of the following set:\n'+pretty_selected_times,
             attendees=list(freebusy.keys()),
             # start_time='2022-02-03 12:00',#start_time.format(),
-            start_time=start_time.format(),#[:-5],
+            start_time=start_time,#[:-5],
             end_time=end_time,
         )
 
