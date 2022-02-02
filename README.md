@@ -32,6 +32,7 @@ python3 slots.py  --attendees 'attendee1@domain.com; Atten Dee <attendee2@domain
 ```
 python3 slots.py  --attendees 'waltmayf@amazon.com' --end 'in 3 days' --length 60
 python3 slots.py  --attendees 'waltmayf@amazon.com;chewmaur@amazon.com' --end 'in 3 days' --length 60
+python3 slots.py  --attendees 'waltmayf@amazon.com;chewmaur@amazon.com' --end 'in 3 days' --length 60 --title 'Dummy test meeting'
 
 ## Install
 ### mac
