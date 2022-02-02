@@ -167,7 +167,8 @@ class OutlookWin():
 @click.option('-hr', '--hours', default='0700-1800', help='Find availability between the hours of... Default = "0800-1900". ')
 @click.option('-f', '--fmt', default='HH:mm',
               help='Time format in list of available slots. "HH:mm" or "h:mma". Refer to https://arrow.readthedocs.io/en/latest/#supported-tokens. Default "HH:mm".')
-def main(attendees, start, end, full, rate, length, tentative, alternative_tz, hours, fmt):
+@click.option('-t', '--title', default='', help='Title of the event')
+def main(attendees, start, end, full, rate, length, tentative, alternative_tz, hours, fmt, title):
     # saved_args = locals()
     # print("saved_args is", saved_args)
 
@@ -402,7 +403,7 @@ def main(attendees, start, end, full, rate, length, tentative, alternative_tz, h
         # start_time= start_time.format()[:-9]
         # print(f'start time: {str(start_time)}')
         outlook.create_event(
-            subject='Placeholder',
+            subject='[Placeholder] '+title,
             content='This placeholder meeting is part of the following set:\n'+pretty_selected_times,
             attendees=list(freebusy.keys()),
             # start_time='2022-02-03 12:00',#start_time.format(),
