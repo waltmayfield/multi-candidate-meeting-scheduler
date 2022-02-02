@@ -368,7 +368,7 @@ def main(attendees, start, end, full, rate, length, tentative, alternative_tz, h
 
             if attendee_free_rate >=  rate:
                 # print('updateing slots')
-                slot_name = f'{time.to(LOCAL_TIMEZONE).format("dddd DD MMMM " + fmt)} - {time.to(LOCAL_TIMEZONE).shift(minutes=length).format(fmt)} {str(LOCAL_TIMEZONE)}'
+                slot_name = f'{time.to(LOCAL_TIMEZONE).format("dddd DD MMMM " + fmt)} - {time.to(LOCAL_TIMEZONE).shift(minutes=length).format(fmt + " ZZZ")}'
                 slots[slot_name] = (time, time.shift(minutes=length))
                 # print(f'slots: {slots}')
 
@@ -393,7 +393,7 @@ def main(attendees, start, end, full, rate, length, tentative, alternative_tz, h
     pretty_selected_times = ''
     for start_time, end_time in res[0]:
         # pretty_selected_times += f'\u2022 {start_time.to(LOCAL_TIMEZONE).format(fmt)} - {end_time.to(LOCAL_TIMEZONE).format(fmt)} {str(LOCAL_TIMEZONE)} \n'
-        pretty_selected_times += f'\u2022 {start_time.to(LOCAL_TIMEZONE).format("ddd, MMM-DD HH:mm")} - {end_time.to(LOCAL_TIMEZONE).format("HH:mm")} {str(LOCAL_TIMEZONE)} \n'
+        pretty_selected_times += f'\u2022 {start_time.to(LOCAL_TIMEZONE).format("ddd, MMM-DD HH:mm")} - {end_time.to(LOCAL_TIMEZONE).format("HH:mm ZZZ")} \n'
 
 
     print(pretty_selected_times)
